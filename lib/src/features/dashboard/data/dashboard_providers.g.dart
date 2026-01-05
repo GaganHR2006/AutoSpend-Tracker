@@ -6,7 +6,7 @@ part of 'dashboard_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$totalBalanceHash() => r'0f6c1d4bb58f85b16625e6b3a0289f91c932c48d';
+String _$totalBalanceHash() => r'f61869ed6cf07bc2ac9706a954b75dcb18643e1d';
 
 /// See also [totalBalance].
 @ProviderFor(totalBalance)
@@ -24,7 +24,7 @@ final totalBalanceProvider = AutoDisposeStreamProvider<double>.internal(
 // ignore: unused_element
 typedef TotalBalanceRef = AutoDisposeStreamProviderRef<double>;
 String _$recentTransactionsHash() =>
-    r'6c935f79e87b707efb89b04431279a1ff7077329';
+    r'0f3446ac7972f0cc853729ff08e129a1107e7fc1';
 
 /// See also [recentTransactions].
 @ProviderFor(recentTransactions)
@@ -43,7 +43,7 @@ final recentTransactionsProvider =
 // ignore: unused_element
 typedef RecentTransactionsRef = AutoDisposeStreamProviderRef<List<Transaction>>;
 String _$spendingByCategoryHash() =>
-    r'7c500710c063c5fb84be3736656fe05936161c7d';
+    r'e27d9c0ac86711ec54d920d072f4623ada3c3fcc';
 
 /// See also [spendingByCategory].
 @ProviderFor(spendingByCategory)

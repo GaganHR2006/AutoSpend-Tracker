@@ -108,3 +108,8 @@ Stream<Map<String, double>> spendingByCategory(Ref ref) {
     return map;
   });
 }
+
+// ⭐ Lending Summary Provider
+final lendingSummaryProvider = StreamProvider<Map<String, double>>((ref) {
+  return ref.watch(appDatabaseProvider).watchLendingSummary();
+});

@@ -98,6 +98,42 @@ class $TransactionsTable extends Transactions
       'CHECK ("is_manual" IN (0, 1))',
     ),
   );
+  static const VerificationMeta _isLendingMeta = const VerificationMeta(
+    'isLending',
+  );
+  @override
+  late final GeneratedColumn<bool> isLending = GeneratedColumn<bool>(
+    'is_lending',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_lending" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<LendingType, int> lendingType =
+      GeneratedColumn<int>(
+        'lending_type',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0),
+      ).withConverter<LendingType>($TransactionsTable.$converterlendingType);
+  static const VerificationMeta _linkedLendingIdMeta = const VerificationMeta(
+    'linkedLendingId',
+  );
+  @override
+  late final GeneratedColumn<int> linkedLendingId = GeneratedColumn<int>(
+    'linked_lending_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -108,6 +144,9 @@ class $TransactionsTable extends Transactions
     type,
     timestamp,
     isManual,
+    isLending,
+    lendingType,
+    linkedLendingId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -168,6 +207,21 @@ class $TransactionsTable extends Transactions
     } else if (isInserting) {
       context.missing(_isManualMeta);
     }
+    if (data.containsKey('is_lending')) {
+      context.handle(
+        _isLendingMeta,
+        isLending.isAcceptableOrUnknown(data['is_lending']!, _isLendingMeta),
+      );
+    }
+    if (data.containsKey('linked_lending_id')) {
+      context.handle(
+        _linkedLendingIdMeta,
+        linkedLendingId.isAcceptableOrUnknown(
+          data['linked_lending_id']!,
+          _linkedLendingIdMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -211,6 +265,20 @@ class $TransactionsTable extends Transactions
         DriftSqlType.bool,
         data['${effectivePrefix}is_manual'],
       )!,
+      isLending: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_lending'],
+      )!,
+      lendingType: $TransactionsTable.$converterlendingType.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}lending_type'],
+        )!,
+      ),
+      linkedLendingId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}linked_lending_id'],
+      ),
     );
   }
 
@@ -221,6 +289,8 @@ class $TransactionsTable extends Transactions
 
   static JsonTypeConverter2<TransactionType, int, int> $convertertype =
       const EnumIndexConverter<TransactionType>(TransactionType.values);
+  static JsonTypeConverter2<LendingType, int, int> $converterlendingType =
+      const EnumIndexConverter<LendingType>(LendingType.values);
 }
 
 class Transaction extends DataClass implements Insertable<Transaction> {
@@ -232,6 +302,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   final TransactionType type;
   final DateTime timestamp;
   final bool isManual;
+  final bool isLending;
+  final LendingType lendingType;
+  final int? linkedLendingId;
   const Transaction({
     required this.id,
     required this.smsId,
@@ -241,6 +314,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     required this.type,
     required this.timestamp,
     required this.isManual,
+    required this.isLending,
+    required this.lendingType,
+    this.linkedLendingId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -259,6 +335,15 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     }
     map['timestamp'] = Variable<DateTime>(timestamp);
     map['is_manual'] = Variable<bool>(isManual);
+    map['is_lending'] = Variable<bool>(isLending);
+    {
+      map['lending_type'] = Variable<int>(
+        $TransactionsTable.$converterlendingType.toSql(lendingType),
+      );
+    }
+    if (!nullToAbsent || linkedLendingId != null) {
+      map['linked_lending_id'] = Variable<int>(linkedLendingId);
+    }
     return map;
   }
 
@@ -274,6 +359,11 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       type: Value(type),
       timestamp: Value(timestamp),
       isManual: Value(isManual),
+      isLending: Value(isLending),
+      lendingType: Value(lendingType),
+      linkedLendingId: linkedLendingId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(linkedLendingId),
     );
   }
 
@@ -293,6 +383,11 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       ),
       timestamp: serializer.fromJson<DateTime>(json['timestamp']),
       isManual: serializer.fromJson<bool>(json['isManual']),
+      isLending: serializer.fromJson<bool>(json['isLending']),
+      lendingType: $TransactionsTable.$converterlendingType.fromJson(
+        serializer.fromJson<int>(json['lendingType']),
+      ),
+      linkedLendingId: serializer.fromJson<int?>(json['linkedLendingId']),
     );
   }
   @override
@@ -309,6 +404,11 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       ),
       'timestamp': serializer.toJson<DateTime>(timestamp),
       'isManual': serializer.toJson<bool>(isManual),
+      'isLending': serializer.toJson<bool>(isLending),
+      'lendingType': serializer.toJson<int>(
+        $TransactionsTable.$converterlendingType.toJson(lendingType),
+      ),
+      'linkedLendingId': serializer.toJson<int?>(linkedLendingId),
     };
   }
 
@@ -321,6 +421,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     TransactionType? type,
     DateTime? timestamp,
     bool? isManual,
+    bool? isLending,
+    LendingType? lendingType,
+    Value<int?> linkedLendingId = const Value.absent(),
   }) => Transaction(
     id: id ?? this.id,
     smsId: smsId ?? this.smsId,
@@ -330,6 +433,11 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     type: type ?? this.type,
     timestamp: timestamp ?? this.timestamp,
     isManual: isManual ?? this.isManual,
+    isLending: isLending ?? this.isLending,
+    lendingType: lendingType ?? this.lendingType,
+    linkedLendingId: linkedLendingId.present
+        ? linkedLendingId.value
+        : this.linkedLendingId,
   );
   Transaction copyWithCompanion(TransactionsCompanion data) {
     return Transaction(
@@ -341,6 +449,13 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       type: data.type.present ? data.type.value : this.type,
       timestamp: data.timestamp.present ? data.timestamp.value : this.timestamp,
       isManual: data.isManual.present ? data.isManual.value : this.isManual,
+      isLending: data.isLending.present ? data.isLending.value : this.isLending,
+      lendingType: data.lendingType.present
+          ? data.lendingType.value
+          : this.lendingType,
+      linkedLendingId: data.linkedLendingId.present
+          ? data.linkedLendingId.value
+          : this.linkedLendingId,
     );
   }
 
@@ -354,7 +469,10 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ..write('category: $category, ')
           ..write('type: $type, ')
           ..write('timestamp: $timestamp, ')
-          ..write('isManual: $isManual')
+          ..write('isManual: $isManual, ')
+          ..write('isLending: $isLending, ')
+          ..write('lendingType: $lendingType, ')
+          ..write('linkedLendingId: $linkedLendingId')
           ..write(')'))
         .toString();
   }
@@ -369,6 +487,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     type,
     timestamp,
     isManual,
+    isLending,
+    lendingType,
+    linkedLendingId,
   );
   @override
   bool operator ==(Object other) =>
@@ -381,7 +502,10 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           other.category == this.category &&
           other.type == this.type &&
           other.timestamp == this.timestamp &&
-          other.isManual == this.isManual);
+          other.isManual == this.isManual &&
+          other.isLending == this.isLending &&
+          other.lendingType == this.lendingType &&
+          other.linkedLendingId == this.linkedLendingId);
 }
 
 class TransactionsCompanion extends UpdateCompanion<Transaction> {
@@ -393,6 +517,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
   final Value<TransactionType> type;
   final Value<DateTime> timestamp;
   final Value<bool> isManual;
+  final Value<bool> isLending;
+  final Value<LendingType> lendingType;
+  final Value<int?> linkedLendingId;
   const TransactionsCompanion({
     this.id = const Value.absent(),
     this.smsId = const Value.absent(),
@@ -402,6 +529,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.type = const Value.absent(),
     this.timestamp = const Value.absent(),
     this.isManual = const Value.absent(),
+    this.isLending = const Value.absent(),
+    this.lendingType = const Value.absent(),
+    this.linkedLendingId = const Value.absent(),
   });
   TransactionsCompanion.insert({
     this.id = const Value.absent(),
@@ -412,6 +542,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     required TransactionType type,
     required DateTime timestamp,
     required bool isManual,
+    this.isLending = const Value.absent(),
+    this.lendingType = const Value.absent(),
+    this.linkedLendingId = const Value.absent(),
   }) : smsId = Value(smsId),
        amount = Value(amount),
        type = Value(type),
@@ -426,6 +559,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Expression<int>? type,
     Expression<DateTime>? timestamp,
     Expression<bool>? isManual,
+    Expression<bool>? isLending,
+    Expression<int>? lendingType,
+    Expression<int>? linkedLendingId,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -436,6 +572,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       if (type != null) 'type': type,
       if (timestamp != null) 'timestamp': timestamp,
       if (isManual != null) 'is_manual': isManual,
+      if (isLending != null) 'is_lending': isLending,
+      if (lendingType != null) 'lending_type': lendingType,
+      if (linkedLendingId != null) 'linked_lending_id': linkedLendingId,
     });
   }
 
@@ -448,6 +587,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Value<TransactionType>? type,
     Value<DateTime>? timestamp,
     Value<bool>? isManual,
+    Value<bool>? isLending,
+    Value<LendingType>? lendingType,
+    Value<int?>? linkedLendingId,
   }) {
     return TransactionsCompanion(
       id: id ?? this.id,
@@ -458,6 +600,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       type: type ?? this.type,
       timestamp: timestamp ?? this.timestamp,
       isManual: isManual ?? this.isManual,
+      isLending: isLending ?? this.isLending,
+      lendingType: lendingType ?? this.lendingType,
+      linkedLendingId: linkedLendingId ?? this.linkedLendingId,
     );
   }
 
@@ -490,6 +635,17 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     if (isManual.present) {
       map['is_manual'] = Variable<bool>(isManual.value);
     }
+    if (isLending.present) {
+      map['is_lending'] = Variable<bool>(isLending.value);
+    }
+    if (lendingType.present) {
+      map['lending_type'] = Variable<int>(
+        $TransactionsTable.$converterlendingType.toSql(lendingType.value),
+      );
+    }
+    if (linkedLendingId.present) {
+      map['linked_lending_id'] = Variable<int>(linkedLendingId.value);
+    }
     return map;
   }
 
@@ -503,7 +659,10 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
           ..write('category: $category, ')
           ..write('type: $type, ')
           ..write('timestamp: $timestamp, ')
-          ..write('isManual: $isManual')
+          ..write('isManual: $isManual, ')
+          ..write('isLending: $isLending, ')
+          ..write('lendingType: $lendingType, ')
+          ..write('linkedLendingId: $linkedLendingId')
           ..write(')'))
         .toString();
   }
@@ -530,6 +689,9 @@ typedef $$TransactionsTableCreateCompanionBuilder =
       required TransactionType type,
       required DateTime timestamp,
       required bool isManual,
+      Value<bool> isLending,
+      Value<LendingType> lendingType,
+      Value<int?> linkedLendingId,
     });
 typedef $$TransactionsTableUpdateCompanionBuilder =
     TransactionsCompanion Function({
@@ -541,6 +703,9 @@ typedef $$TransactionsTableUpdateCompanionBuilder =
       Value<TransactionType> type,
       Value<DateTime> timestamp,
       Value<bool> isManual,
+      Value<bool> isLending,
+      Value<LendingType> lendingType,
+      Value<int?> linkedLendingId,
     });
 
 class $$TransactionsTableFilterComposer
@@ -590,6 +755,22 @@ class $$TransactionsTableFilterComposer
 
   ColumnFilters<bool> get isManual => $composableBuilder(
     column: $table.isManual,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isLending => $composableBuilder(
+    column: $table.isLending,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<LendingType, LendingType, int>
+  get lendingType => $composableBuilder(
+    column: $table.lendingType,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnFilters<int> get linkedLendingId => $composableBuilder(
+    column: $table.linkedLendingId,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -642,6 +823,21 @@ class $$TransactionsTableOrderingComposer
     column: $table.isManual,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get isLending => $composableBuilder(
+    column: $table.isLending,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lendingType => $composableBuilder(
+    column: $table.lendingType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get linkedLendingId => $composableBuilder(
+    column: $table.linkedLendingId,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$TransactionsTableAnnotationComposer
@@ -676,6 +872,20 @@ class $$TransactionsTableAnnotationComposer
 
   GeneratedColumn<bool> get isManual =>
       $composableBuilder(column: $table.isManual, builder: (column) => column);
+
+  GeneratedColumn<bool> get isLending =>
+      $composableBuilder(column: $table.isLending, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<LendingType, int> get lendingType =>
+      $composableBuilder(
+        column: $table.lendingType,
+        builder: (column) => column,
+      );
+
+  GeneratedColumn<int> get linkedLendingId => $composableBuilder(
+    column: $table.linkedLendingId,
+    builder: (column) => column,
+  );
 }
 
 class $$TransactionsTableTableManager
@@ -717,6 +927,9 @@ class $$TransactionsTableTableManager
                 Value<TransactionType> type = const Value.absent(),
                 Value<DateTime> timestamp = const Value.absent(),
                 Value<bool> isManual = const Value.absent(),
+                Value<bool> isLending = const Value.absent(),
+                Value<LendingType> lendingType = const Value.absent(),
+                Value<int?> linkedLendingId = const Value.absent(),
               }) => TransactionsCompanion(
                 id: id,
                 smsId: smsId,
@@ -726,6 +939,9 @@ class $$TransactionsTableTableManager
                 type: type,
                 timestamp: timestamp,
                 isManual: isManual,
+                isLending: isLending,
+                lendingType: lendingType,
+                linkedLendingId: linkedLendingId,
               ),
           createCompanionCallback:
               ({
@@ -737,6 +953,9 @@ class $$TransactionsTableTableManager
                 required TransactionType type,
                 required DateTime timestamp,
                 required bool isManual,
+                Value<bool> isLending = const Value.absent(),
+                Value<LendingType> lendingType = const Value.absent(),
+                Value<int?> linkedLendingId = const Value.absent(),
               }) => TransactionsCompanion.insert(
                 id: id,
                 smsId: smsId,
@@ -746,6 +965,9 @@ class $$TransactionsTableTableManager
                 type: type,
                 timestamp: timestamp,
                 isManual: isManual,
+                isLending: isLending,
+                lendingType: lendingType,
+                linkedLendingId: linkedLendingId,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

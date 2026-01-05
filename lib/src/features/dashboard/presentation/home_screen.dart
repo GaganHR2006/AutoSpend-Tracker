@@ -29,6 +29,7 @@ class HomeScreen extends ConsumerWidget {
     final transactionsAsync = ref.watch(filteredTransactionListProvider);
     final displayCount = ref.watch(displayCountProvider);
     final uncategorizedCount = ref.watch(uncategorizedCountProvider);
+    final lendingSummaryAsync = ref.watch(lendingSummaryProvider);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -39,7 +40,12 @@ class HomeScreen extends ConsumerWidget {
             child: _buildSummaryCard(context, balanceAsync),
           ),
           
-          // 2. Uncategorized Banner (if any)
+          // 2. Lending Summary Card
+          SliverToBoxAdapter(
+            child: _buildLendingSummaryCard(context, lendingSummaryAsync),
+          ),
+          
+          // 3. Uncategorized Banner (if any)
           if (uncategorizedCount > 0)
             SliverToBoxAdapter(
               child: _buildUncategorizedBanner(context, ref, uncategorizedCount),
@@ -186,6 +192,83 @@ class HomeScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  // ⭐ Lending Summary Card
+  Widget _buildLendingSummaryCard(BuildContext context, AsyncValue<Map<String, double>> lendingAsync) {
+    final currencyFormat = NumberFormat.simpleCurrency(name: 'INR', decimalDigits: 0);
+
+    return lendingAsync.when(
+      data: (data) {
+        final lent = data['lent'] ?? 0.0;
+        final returned = data['returned'] ?? 0.0;
+        final outstanding = lent - returned;
+        
+        // Don't show if no lending activity
+        if (lent <= 0 && returned <= 0) return const SizedBox.shrink();
+
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.orange.shade700, Colors.deepOrange.shade900],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(color: Colors.orange.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4)),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.handshake, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Text('Money Lent', style: GoogleFonts.poppins(color: Colors.white70, fontSize: 14)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                currencyFormat.format(outstanding > 0 ? outstanding : 0),
+                style: GoogleFonts.poppins(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              if (outstanding > 0)
+                Text(
+                  'Outstanding from friends',
+                  style: GoogleFonts.poppins(fontSize: 12, color: Colors.white70),
+                ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text("💸 Lent", style: TextStyle(color: Colors.white60, fontSize: 11)),
+                      Text(currencyFormat.format(lent), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ],
+                  )),
+                  Container(width: 1, height: 30, color: Colors.white24),
+                  const SizedBox(width: 16),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text("💰 Returned", style: TextStyle(color: Colors.white60, fontSize: 11)),
+                      Text(currencyFormat.format(returned), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ],
+                  )),
+                ],
+              )
+            ],
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
     );
   }
 
