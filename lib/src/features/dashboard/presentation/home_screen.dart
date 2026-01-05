@@ -4,9 +4,21 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../data/dashboard_providers.dart';
 import 'widgets/transaction_tile.dart';
+import '../../transactions/presentation/quick_categorize_sheet.dart';
+import '../../transactions/data/transaction_repository.dart';
 
-// --- LOCAL PROVIDER ---
+// --- LOCAL PROVIDERS ---
 final displayCountProvider = StateProvider<int>((ref) => 100);
+
+// Provider for uncategorized count
+final uncategorizedCountProvider = Provider<int>((ref) {
+  final transactionsAsync = ref.watch(transactionListProvider);
+  return transactionsAsync.when(
+    data: (list) => list.where((t) => t.category == 'Uncategorized').length,
+    loading: () => 0,
+    error: (_, __) => 0,
+  );
+});
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -16,6 +28,7 @@ class HomeScreen extends ConsumerWidget {
     final balanceAsync = ref.watch(totalBalanceProvider);
     final transactionsAsync = ref.watch(filteredTransactionListProvider);
     final displayCount = ref.watch(displayCountProvider);
+    final uncategorizedCount = ref.watch(uncategorizedCountProvider);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -26,7 +39,13 @@ class HomeScreen extends ConsumerWidget {
             child: _buildSummaryCard(context, balanceAsync),
           ),
           
-          // 2. THE FILTER BAR (Neon Style ⚡)
+          // 2. Uncategorized Banner (if any)
+          if (uncategorizedCount > 0)
+            SliverToBoxAdapter(
+              child: _buildUncategorizedBanner(context, ref, uncategorizedCount),
+            ),
+          
+          // 3. THE FILTER BAR (Neon Style ⚡)
           const SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.only(top: 15.0, bottom: 10.0),
@@ -44,7 +63,7 @@ class HomeScreen extends ConsumerWidget {
             ),
           ),
 
-          // 3. The List
+          // 4. The List
           transactionsAsync.when(
             data: (transactions) {
               if (transactions.isEmpty) {
@@ -166,6 +185,70 @@ class HomeScreen extends ConsumerWidget {
             error: (_, __) => const Text('---', style: TextStyle(color: Colors.white, fontSize: 40)),
           ),
         ],
+      ),
+    );
+  }
+
+  // ⭐ Uncategorized Banner - Opens Quick Categorize
+  Widget _buildUncategorizedBanner(BuildContext context, WidgetRef ref, int count) {
+    return GestureDetector(
+      onTap: () async {
+        final uncategorized = await ref.read(transactionRepositoryProvider).getUncategorizedTransactions();
+        
+        if (uncategorized.isEmpty) return;
+
+        if (context.mounted) {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (context) => QuickCategorizeSheet(transactions: uncategorized),
+          );
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.orange.shade700, Colors.deepOrange.shade800],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(color: Colors.orange.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4)),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.category_outlined, color: Colors.white, size: 24),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$count Uncategorized',
+                    style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                  Text(
+                    'Tap to categorize quickly',
+                    style: GoogleFonts.poppins(fontSize: 12, color: Colors.white.withOpacity(0.8)),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
+          ],
+        ),
       ),
     );
   }
