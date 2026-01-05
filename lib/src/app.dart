@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'features/onboarding/onboarding_screen.dart';
 import 'features/dashboard/presentation/dashboard_screen.dart';
 
@@ -27,10 +28,21 @@ class _AutoSpendAppState extends ConsumerState<AutoSpendApp> {
   }
 
   Future<void> _checkOnboarding() async {
-    const storage = FlutterSecureStorage();
-    final value = await storage.read(key: 'is_onboarded');
+    // Check BOTH storage methods for robustness
+    const secureStorage = FlutterSecureStorage();
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Check FlutterSecureStorage (original method)
+    final secureValue = await secureStorage.read(key: 'is_onboarded');
+    
+    // Check SharedPreferences (backup method - more reliable)
+    final prefsValue = prefs.getBool('setup_complete') ?? false;
+    
+    // User is onboarded if EITHER storage says true
+    final isOnboarded = secureValue == 'true' || prefsValue;
+    
     setState(() {
-      _isOnboarded = value == 'true';
+      _isOnboarded = isOnboarded;
     });
   }
 

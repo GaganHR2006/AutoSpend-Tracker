@@ -4,6 +4,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/sms/sms_parser_service.dart';
 import '../../app.dart';
 
@@ -78,8 +79,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   );
                   setState(() => _isBioEnabled = didAuthenticate);
                 } else {
-                  // Fallback or skip
-                  setState(() => _isBioEnabled = true); // Mock success if no hardware
+                  setState(() => _isBioEnabled = true);
                 }
                 _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
               },
@@ -173,8 +173,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   setState(() => _isScanning = true);
                   await ref.read(smsParserServiceProvider).scanMessages(_scanMonths.round());
                   
-                  // Save onboarding state
+                  // ⭐ CRITICAL FIX: Save to BOTH storage methods
+                  // 1. FlutterSecureStorage (original)
                   await _storage.write(key: 'is_onboarded', value: 'true');
+                  
+                  // 2. SharedPreferences (backup - more reliable)
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setBool('setup_complete', true);
+                  await prefs.setBool('onboarding_complete', true);
                   
                   if (context.mounted) {
                     Navigator.of(context).pushReplacement(

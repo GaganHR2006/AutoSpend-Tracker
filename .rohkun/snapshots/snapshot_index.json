@@ -1,0 +1,31 @@
+{
+  "project_hash": "RHKN-F86B6C",
+  "snapshots": [
+    {
+      "id": "snapshot_20260105_103917",
+      "timestamp": "2026-01-05T10:39:17.863324Z",
+      "sequence": 1,
+      "endpoints": 0,
+      "api_calls": 0,
+      "connections": 0,
+      "files": 193,
+      "drift": 0.0,
+      "status": "baseline",
+      "report_file": "1"
+    },
+    {
+      "id": "snapshot_20260105_104336",
+      "timestamp": "2026-01-05T10:43:36.903431Z",
+      "sequence": 2,
+      "endpoints": 0,
+      "api_calls": 0,
+      "connections": 0,
+      "files": 199,
+      "drift": 0.0,
+      "status": "healthy",
+      "report_file": "2",
+      "compared_to": "snapshot_20260105_103917",
+      "compared_to_report": "1"
+    }
+  ]
+}

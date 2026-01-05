@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AutoSpend</string>
+    <string name="accessibility_service_description">AutoSpend needs accessibility access to automatically track your UPI transactions from payment apps like PhonePe, Paytm, and Google Pay. This helps you manage your spending without manual entry.</string>
+</resources>

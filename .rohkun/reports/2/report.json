@@ -1,0 +1,240 @@
+{
+  "version": "2.0.0",
+  "generated_at": "2026-01-05T10:43:36.866757Z",
+  "project": {
+    "path": "C:\\Users\\gagan\\Desktop\\finance",
+    "name": "finance"
+  },
+  "summary": {
+    "total_endpoints": 0,
+    "total_api_calls": 0,
+    "total_connections": 0,
+    "total_imports": 1,
+    "total_function_calls": 15,
+    "total_function_definitions": 2,
+    "certain_connections": 0,
+    "high_confidence_connections": 0,
+    "medium_confidence_connections": 0,
+    "low_confidence_connections": 0,
+    "high_impact_nodes": 0,
+    "ui_issues": {
+      "total": 0,
+      "high": 0,
+      "medium": 0,
+      "low": 0
+    }
+  },
+  "endpoints": [],
+  "api_calls": [],
+  "connections": [],
+  "dependencies": {
+    "imports": [
+      {
+        "type": "import",
+        "module": "lldb",
+        "imported_names": [
+          "lldb"
+        ],
+        "line": 5,
+        "code": "import lldb",
+        "file": "C:\\Users\\gagan\\Desktop\\finance\\ios\\Flutter\\ephemeral\\flutter_lldb_helper.py",
+        "confidence": "confident",
+        "detection_method": "ast"
+      }
+    ],
+    "function_calls": [
+      {
+        "type": "function_call",
+        "function": "frame.register[\"x0\"].GetValueAsAddress",
+        "line": 9,
+        "code": "frame.register[\"x0\"].GetValueAsAddress()",
+        "file": "C:\\Users\\gagan\\Desktop\\finance\\ios\\Flutter\\ephemeral\\flutter_lldb_helper.py",
+        "confidence": "confident",
+        "detection_method": "ast"
+      },
+      {
+        "type": "function_call",
+        "function": "frame.register[\"x1\"].GetValueAsUnsigned",
+        "line": 10,
+        "code": "frame.register[\"x1\"].GetValueAsUnsigned()",
+        "file": "C:\\Users\\gagan\\Desktop\\finance\\ios\\Flutter\\ephemeral\\flutter_lldb_helper.py",
+        "confidence": "confident",
+        "detection_method": "ast"
+      },
+      {
+        "type": "function_call",
+        "function": "bytearray",
+        "line": 15,
+        "code": "bytearray(page_len)",
+        "file": "C:\\Users\\gagan\\Desktop\\finance\\ios\\Flutter\\ephemeral\\flutter_lldb_helper.py",
+        "confidence": "confident",
+        "detection_method": "ast"
+      },
+      {
+        "type": "function_call",
+        "function": "lldb.SBError",
+        "line": 18,
+        "code": "lldb.SBError()",
+        "file": "C:\\Users\\gagan\\Desktop\\finance\\ios\\Flutter\\ephemeral\\flutter_lldb_helper.py",
+        "confidence": "confident",
+        "detection_method": "ast"
+      },
+      {
+        "type": "function_call",
+        "function": "frame.GetThread().GetProcess().WriteMemory",
+        "line": 19,
+        "code": "frame.GetThread().GetProcess().WriteMemory(base, data, error)",
+        "file": "C:\\Users\\gagan\\Desktop\\finance\\ios\\Flutter\\ephemeral\\flutter_lldb_helper.py",
+        "confidence": "confident",
+        "detection_method": "ast"
+      },
+      {
+        "type": "function_call",
+        "function": "frame.GetThread().GetProcess",
+        "line": 19,
+        "code": "frame.GetThread().GetProcess()",
+        "file": "C:\\Users\\gagan\\Desktop\\finance\\ios\\Flutter\\ephemeral\\flutter_lldb_helper.py",
+        "confidence": "confident",
+        "detection_method": "ast"
+      },
+      {
+        "type": "function_call",
+        "function": "frame.GetThread",
+        "line": 19,
+        "code": "frame.GetThread()",
+        "file": "C:\\Users\\gagan\\Desktop\\finance\\ios\\Flutter\\ephemeral\\flutter_lldb_helper.py",
+        "confidence": "confident",
+        "detection_method": "ast"
+      },
+      {
+        "type": "function_call",
+        "function": "error.Success",
+        "line": 20,
+        "code": "error.Success()",
+        "file": "C:\\Users\\gagan\\Desktop\\finance\\ios\\Flutter\\ephemeral\\flutter_lldb_helper.py",
+        "confidence": "confident",
+        "detection_method": "ast"
+      },
+      {
+        "type": "function_call",
+        "function": "print",
+        "line": 21,
+        "code": "print(f'Failed to write into {base}[+{page_len}]', error)",
+        "file": "C:\\Users\\gagan\\Desktop\\finance\\ios\\Flutter\\ephemeral\\flutter_lldb_helper.py",
+        "confidence": "confident",
+        "detection_method": "ast"
+      },
+      {
+        "type": "function_call",
+        "function": "debugger.GetDummyTarget",
+        "line": 25,
+        "code": "debugger.GetDummyTarget()",
+        "file": "C:\\Users\\gagan\\Desktop\\finance\\ios\\Flutter\\ephemeral\\flutter_lldb_helper.py",
+        "confidence": "confident",
+        "detection_method": "ast"
+      },
+      {
+        "type": "function_call",
+        "function": "target.BreakpointCreateByRegex",
+        "line": 29,
+        "code": "target.BreakpointCreateByRegex(\"^NOTIFY_DEBUGGER_ABOUT_RX_PAGES$\")",
+        "file": "C:\\Users\\gagan\\Desktop\\finance\\ios\\Flutter\\ephemeral\\flutter_lldb_helper.py",
+        "confidence": "confident",
+        "detection_method": "ast"
+      },
+      {
+        "type": "function_call",
+        "function": "bp.SetScriptCallbackFunction",
+        "line": 30,
+        "code": "bp.SetScriptCallbackFunction('{}.handle_new_rx_page'.format(__name__))",
+        "file": "C:\\Users\\gagan\\Desktop\\finance\\ios\\Flutter\\ephemeral\\flutter_lldb_helper.py",
+        "confidence": "confident",
+        "detection_method": "ast"
+      },
+      {
+        "type": "function_call",
+        "function": "'{}.handle_new_rx_page'.format",
+        "line": 30,
+        "code": "'{}.handle_new_rx_page'.format(__name__)",
+        "file": "C:\\Users\\gagan\\Desktop\\finance\\ios\\Flutter\\ephemeral\\flutter_lldb_helper.py",
+        "confidence": "confident",
+        "detection_method": "ast"
+      },
+      {
+        "type": "function_call",
+        "function": "bp.SetAutoContinue",
+        "line": 31,
+        "code": "bp.SetAutoContinue(True)",
+        "file": "C:\\Users\\gagan\\Desktop\\finance\\ios\\Flutter\\ephemeral\\flutter_lldb_helper.py",
+        "confidence": "confident",
+        "detection_method": "ast"
+      },
+      {
+        "type": "function_call",
+        "function": "print",
+        "line": 32,
+        "code": "print(\"-- LLDB integration loaded --\")",
+        "file": "C:\\Users\\gagan\\Desktop\\finance\\ios\\Flutter\\ephemeral\\flutter_lldb_helper.py",
+        "confidence": "confident",
+        "detection_method": "ast"
+      }
+    ],
+    "function_definitions": [
+      {
+        "type": "function",
+        "name": "handle_new_rx_page",
+        "line": 7,
+        "is_async": false,
+        "params": "(frame: lldb.SBFrame, bp_loc, extra_args, intern_dict)",
+        "file": "C:\\Users\\gagan\\Desktop\\finance\\ios\\Flutter\\ephemeral\\flutter_lldb_helper.py",
+        "confidence": "confident",
+        "detection_method": "ast"
+      },
+      {
+        "type": "function",
+        "name": "__lldb_init_module",
+        "line": 24,
+        "is_async": false,
+        "params": "(debugger: lldb.SBDebugger, _)",
+        "file": "C:\\Users\\gagan\\Desktop\\finance\\ios\\Flutter\\ephemeral\\flutter_lldb_helper.py",
+        "confidence": "confident",
+        "detection_method": "ast"
+      }
+    ]
+  },
+  "blast_radius": [],
+  "high_impact_nodes": [],
+  "accuracy": {},
+  "metadata": {
+    "files_scanned": 199
+  },
+  "semantic_context": {
+    "health_status": "critical",
+    "health_description": "Low integration: 0% of endpoints have matching API calls. Many endpoints may be unused, or API calls may be missing.",
+    "connection_rate": 0,
+    "key_insights": [],
+    "field_descriptions": {
+      "endpoints": "Backend API endpoints (routes) that accept HTTP requests",
+      "api_calls": "Frontend/client code that makes HTTP requests to APIs",
+      "connections": "Matched pairs showing which API calls connect to which endpoints",
+      "blast_radius": "Impact analysis showing how many files/endpoints would be affected by changes",
+      "high_impact_nodes": "Critical endpoints/files that have many dependencies"
+    }
+  },
+  "ui_inspection": {
+    "snapshots": [],
+    "issues": [],
+    "summary": {
+      "total_files": 0,
+      "total_elements": 0,
+      "total_issues": 0,
+      "issues_by_type": {}
+    },
+    "enabled": true
+  },
+  "visualization": {
+    "html_path": ".rohkun\\reports\\2\\graph.html",
+    "html_file": "graph.html",
+    "folder": "2"
+  }
+}
