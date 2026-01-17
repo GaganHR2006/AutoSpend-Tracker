@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../transactions/data/transaction_repository.dart';
 import '../../../core/database/database.dart';
 
 part 'dashboard_providers.g.dart';
 
 // ==============================================================================
-// FILTER PROVIDERS (NEW - for the Neon Filter Bar)
+// FILTER PROVIDERS
 // ==============================================================================
 
 enum TransactionTimeFilter {
@@ -16,17 +17,33 @@ enum TransactionTimeFilter {
   last3Months,
   last6Months,
   allTime,
-  customRange,
+  customRange, // ⭐ Used for Time Travel date range
 }
 
-// Current selected filter
-final transactionFilterProvider = StateProvider<TransactionTimeFilter>((ref) => TransactionTimeFilter.thisMonth);
+// Current selected filter - Default to customRange to use saved Time Travel dates
+final transactionFilterProvider = StateProvider<TransactionTimeFilter>((ref) => TransactionTimeFilter.customRange);
 
-// Custom date range (used when customRange is selected)
-final customDateRangeProvider = StateProvider<DateTimeRange?>((ref) => null);
+// ⭐ Load saved date range from SharedPreferences (set during Time Travel)
+final savedDateRangeProvider = FutureProvider<DateTimeRange?>((ref) async {
+  final prefs = await SharedPreferences.getInstance();
+  final startStr = prefs.getString('filter_start_date');
+  final endStr = prefs.getString('filter_end_date');
+  
+  if (startStr != null && endStr != null) {
+    return DateTimeRange(
+      start: DateTime.parse(startStr),
+      end: DateTime.parse(endStr),
+    );
+  }
+  return null;
+});
 
-// ==============================================================================
-// EXISTING PROVIDERS
+// Custom date range - uses saved range or falls back to null
+final customDateRangeProvider = StateProvider<DateTimeRange?>((ref) {
+  final savedRange = ref.watch(savedDateRangeProvider);
+  return savedRange.valueOrNull;
+});
+
 // ==============================================================================
 
 @riverpod
@@ -84,9 +101,14 @@ final filteredTransactionListProvider = Provider<AsyncValue<List<Transaction>>>(
           break;
       }
       
+      // Normalize dates to start of day (00:00:00) and end of day (23:59:59)
+      final normalizedStartDate = DateTime(startDate.year, startDate.month, startDate.day);
+      final normalizedEndDate = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
+
       final filtered = transactions.where((tx) {
-        return tx.timestamp.isAfter(startDate.subtract(const Duration(days: 1))) &&
-               tx.timestamp.isBefore(endDate.add(const Duration(days: 1)));
+        // Transaction must be >= start date AND <= end date (inclusive)
+        return !tx.timestamp.isBefore(normalizedStartDate) && 
+               !tx.timestamp.isAfter(normalizedEndDate);
       }).toList();
       
       return AsyncValue.data(filtered);
@@ -96,15 +118,63 @@ final filteredTransactionListProvider = Provider<AsyncValue<List<Transaction>>>(
   );
 });
 
+// ⭐ FILTERED balance (based on selected filter, excludes lending)
+final filteredBalanceProvider = Provider<AsyncValue<double>>((ref) {
+  final filteredAsync = ref.watch(filteredTransactionListProvider);
+  
+  return filteredAsync.when(
+    data: (transactions) {
+      double totalIncome = 0;
+      double totalExpense = 0;
+      
+      for (final tx in transactions) {
+        // Skip lending transactions
+        if (tx.isLending) continue;
+        
+        if (tx.type == TransactionType.income) {
+          totalIncome += tx.amount;
+        } else {
+          totalExpense += tx.amount;
+        }
+      }
+      
+      final balance = totalIncome - totalExpense;
+      return AsyncValue.data(balance);
+    },
+    loading: () => const AsyncValue.loading(),
+    error: (e, st) => AsyncValue.error(e, st),
+  );
+});
+
 @riverpod
 Stream<Map<String, double>> spendingByCategory(Ref ref) {
-  return ref.watch(transactionRepositoryProvider).watchTransactions().map((transactions) {
+  // ⭐ Use FILTERED transactions (respects saved date range)
+  return ref.watch(transactionRepositoryProvider).watchTransactions().map((allTransactions) {
+    // Get date range from savedDateRangeProvider
+    final savedRange = ref.read(savedDateRangeProvider).valueOrNull;
+    
+    List<Transaction> transactions = allTransactions;
+    
+    // Apply date filter if available
+    if (savedRange != null) {
+      final normalizedStart = DateTime(savedRange.start.year, savedRange.start.month, savedRange.start.day);
+      final normalizedEnd = DateTime(savedRange.end.year, savedRange.end.month, savedRange.end.day, 23, 59, 59);
+
+      transactions = allTransactions.where((tx) {
+        return !tx.timestamp.isBefore(normalizedStart) && 
+               !tx.timestamp.isAfter(normalizedEnd);
+      }).toList();
+    }
+    
     final Map<String, double> map = {};
+    
     for (final tx in transactions) {
+      // Include ALL expense transactions (not just specific categories)
       if (tx.type == TransactionType.expense) {
         map.update(tx.category, (value) => value + tx.amount, ifAbsent: () => tx.amount);
       }
     }
+    
     return map;
   });
 }

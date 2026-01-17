@@ -10,13 +10,25 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
   return NotificationService(db);
 });
 
-/// Service to handle notification listener for UPI transactions
+/// Service to handle real-time incoming notifications
 class NotificationService {
   static const _channel = MethodChannel('com.example.autospend/notifications');
   final AppDatabase _db;
   
+  // ✅ Cache of recently inserted transactions to prevent duplicates
+  static final Map<String, DateTime> _recentInserts = {};
+  static const _cacheExpiry = Duration(minutes: 10);
+  
   NotificationService(this._db) {
     _setupMethodChannel();
+  }
+  
+  /// Clean expired cache entries
+  void _cleanExpiredCache() {
+    final now = DateTime.now();
+    _recentInserts.removeWhere((key, insertTime) {
+      return now.difference(insertTime) > _cacheExpiry;
+    });
   }
 
   /// Set up the method channel to receive notifications from Kotlin
@@ -25,7 +37,7 @@ class NotificationService {
       if (call.method == 'onNotification') {
         final Map<dynamic, dynamic> data = call.arguments;
         await _processNotification(
-          packageName: data['packageName'] as String,
+          merchantName: data['merchantName'] as String,
           title: data['title'] as String,
           text: data['text'] as String,
           timestamp: data['timestamp'] as int,
@@ -55,27 +67,97 @@ class NotificationService {
 
   /// Process incoming UPI notification
   Future<void> _processNotification({
-    required String packageName,
+    required String merchantName,
     required String title,
     required String text,
     required int timestamp,
   }) async {
+    final now = DateTime.now();
+    print('');
+    print('✅✅✅ NOTIFICATION RECEIVED [${now.hour}:${now.minute}:${now.second}] ✅✅✅');
+    print('   Merchant: $merchantName');
+    print('   Title: $title');
+    print('   Text: $text');
+    print('   Timestamp: ${DateTime.fromMillisecondsSinceEpoch(timestamp)}');
+    print('');
+    
     // Parse the notification
-    final parsed = _parseNotification(packageName, title, text);
+    final parsed = _parseNotification(title, text);
     if (parsed == null) return;
 
     final amount = parsed['amount'] as double;
-    final merchant = parsed['merchant'] as String?;
     final type = parsed['type'] as TransactionType;
-    final smsId = 'notif_${packageName}_$timestamp';
-
+    // Use the pre-extracted merchant name from Kotlin
+    final merchant = merchantName;
+    
+    print('🔔 NotificationService: Processing notification transaction');
+    print('   Merchant: $merchant');
+    print('   Amount: ₹$amount');
+    print('   Type: $type');
+    print('   Timestamp: ${DateTime.fromMillisecondsSinceEpoch(timestamp)}');
+    
+    final transactionTimestamp = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    final smsId = 'notif_${timestamp}_${merchant.replaceAll(' ', '_')}';
+    
     // Check if already exists
     try {
-      final existing = await (_db.select(_db.transactions)
+      // Clean expired cache entries
+      _cleanExpiredCache();
+      
+      // ✅ CHECK 0: Cache check using exact notifId (fastest, most reliable)
+      // This prevents the EXACT same notification from being processed twice
+      if (_recentInserts.containsKey(smsId)) {
+        final insertTime = _recentInserts[smsId]!;
+        final timeSince = DateTime.now().difference(insertTime).inSeconds;
+        print('⚠️ NotificationService: BLOCKED by cache - Same notifId inserted ${timeSince}s ago');
+        print('   Notif ID: $smsId');
+        return;
+      }
+      
+      // ✅ CHECK 2: Exact smsId duplicate (same notification received twice)
+      final existingBySmsId = await (_db.select(_db.transactions)
         ..where((t) => t.smsId.equals(smsId)))
         .getSingleOrNull();
       
-      if (existing != null) return; // Already processed
+      if (existingBySmsId != null) {
+        print('⚠️ NotificationService: EXACT DUPLICATE - Same smsId already exists');
+        print('   Existing ID: ${existingBySmsId.smsId}');
+        return;
+      }
+      
+      // ✅ CHECK 3: Fuzzy duplicate (same transaction from SMS source)
+      print('🔍 NotificationService: Checking for fuzzy duplicates...');
+      final isDuplicate = await _db.isDuplicateTransaction(
+        amount: amount,
+        type: type,
+        timestamp: transactionTimestamp,
+        merchant: merchant,  // ✅ Added merchant for smarter duplicate detection
+      );
+      
+      if (isDuplicate) {
+        print('⚠️ NotificationService: FUZZY DUPLICATE DETECTED - Transaction blocked!');
+        print('   This transaction likely came from SMS');
+        return;
+      }
+      
+      print('✅ NotificationService: All checks passed - Proceeding with insert');
+      
+      // ✅ ADD TO CACHE BEFORE INSERTING (prevents race condition)
+      _recentInserts[smsId] = DateTime.now();
+      print('📝 NotificationService: Added to cache - Notif ID: $smsId');
+      
+      print('');
+      print('═══════════════════════════════════');
+      print('🔔 NOTIFICATION SERVICE: ATTEMPTING INSERT');
+      print('═══════════════════════════════════');
+      print('SMS ID: $smsId');
+      print('Amount: ₹$amount');
+      print('Merchant: Uncategorized');
+      print('Category: Uncategorized');
+      print('Type: $type');
+      print('Timestamp: $transactionTimestamp');
+      print('═══════════════════════════════════');
+      print('');
 
       // Insert new transaction
       await _db.into(_db.transactions).insert(TransactionsCompanion(
@@ -84,94 +166,85 @@ class NotificationService {
         merchant: Value(merchant),
         category: const Value('Uncategorized'),
         type: Value(type),
-        timestamp: Value(DateTime.fromMillisecondsSinceEpoch(timestamp)),
+        timestamp: Value(transactionTimestamp),
         isManual: const Value(false),
         isLending: const Value(false),
         lendingType: const Value(LendingType.none),
       ));
+      
+      print('✅ NOTIFICATION SERVICE: INSERT SUCCESSFUL');
+      print('');
+      
+      // ✅ Force stream refresh by querying
+      final allTransactions = await _db.select(_db.transactions).get();
+      print('🔄 Database now has ${allTransactions.length} total transactions');
+      
+      // Give time for stream to propagate
+      await Future.delayed(const Duration(milliseconds: 300));
+      print('🔄 Streams should have updated UI by now');
     } catch (e) {
       // Log error but don't crash
+      print('❌ NotificationService: Error processing notification: $e');
     }
   }
 
   /// Parse notification text to extract transaction details
-  Map<String, dynamic>? _parseNotification(String packageName, String title, String text) {
+  Map<String, dynamic>? _parseNotification(String title, String text) {
     final combined = '$title $text';
+    
+    print('🔍 NotificationService: Parsing notification');
+    print('   Title: $title');
+    print('   Text: $text');
+    print('   Combined: $combined');
     
     // Extract amount with rupee symbol
     final amountRegex = RegExp(r'₹\s*([\d,]+(?:\.\d{2})?)');
     final amountMatch = amountRegex.firstMatch(combined);
-    if (amountMatch == null) return null;
+    if (amountMatch == null) {
+      print('⚠️ No amount found in notification');
+      return null;
+    }
 
     final amountStr = amountMatch.group(1)!.replaceAll(',', '');
     final amount = double.tryParse(amountStr);
-    if (amount == null || amount <= 0) return null;
+    if (amount == null || amount <= 0) {
+      print('⚠️ Invalid amount: $amountStr');
+      return null;
+    }
 
     // Determine transaction type
+    final lowerText = combined.toLowerCase();
     TransactionType type = TransactionType.expense;
     
-    // Keywords for income
-    final incomeKeywords = ['received', 'credited', 'got', 'from'];
-    // Keywords for expense
-    final expenseKeywords = ['paid', 'sent', 'debited', 'to', 'transferred'];
-
-    final lowerText = combined.toLowerCase();
+    // ✅ CRITICAL: Check income patterns FIRST (they're more specific)
+    // "paid you" = income, "sent you" = income
+    // "you paid" = expense, "you sent" = expense
     
-    for (final keyword in incomeKeywords) {
-      if (lowerText.contains(keyword)) {
-        type = TransactionType.income;
-        break;
-      }
+    // Income indicators (someone sending money TO you)
+    if (lowerText.contains('paid you') ||
+        lowerText.contains('sent you') ||
+        lowerText.contains('received') ||
+        lowerText.contains('credited') ||
+        lowerText.contains('got') ||
+        lowerText.contains('payment from')) {
+      type = TransactionType.income;
+    }
+    // Expense indicators (you sending money TO someone)
+    else if (lowerText.contains('you paid') ||
+             lowerText.contains('you sent') ||
+             lowerText.contains('paid to') ||
+             lowerText.contains('sent to') ||
+             lowerText.contains('debited') ||
+             lowerText.contains('transferred to')) {
+      type = TransactionType.expense;
     }
     
-    for (final keyword in expenseKeywords) {
-      if (lowerText.contains(keyword)) {
-        type = TransactionType.expense;
-        break;
-      }
-    }
-
-    // Extract merchant name (person/business name)
-    String? merchant;
-    
-    // Common patterns: "paid to <name>", "received from <name>", "sent to <name>"
-    final merchantPatterns = [
-      RegExp(r'(?:paid|sent|transferred) to ([A-Za-z\s]+)', caseSensitive: false),
-      RegExp(r'(?:received|credited) from ([A-Za-z\s]+)', caseSensitive: false),
-      RegExp(r'to ([A-Za-z\s]+) on', caseSensitive: false),
-      RegExp(r'from ([A-Za-z\s]+) on', caseSensitive: false),
-    ];
-
-    for (final pattern in merchantPatterns) {
-      final match = pattern.firstMatch(combined);
-      if (match != null) {
-        merchant = match.group(1)?.trim();
-        if (merchant != null && merchant.length > 2) break;
-        merchant = null;
-      }
-    }
-
-    // If no merchant found, use app name
-    merchant ??= _appNameFromPackage(packageName);
+    print('✅ Detected amount: ₹$amount');
+    print('✅ Detected type: $type');
 
     return {
       'amount': amount,
-      'merchant': merchant,
       'type': type,
-    };
-  }
-
-  String _appNameFromPackage(String packageName) {
-    return switch (packageName) {
-      'net.one97.paytm' => 'Paytm',
-      'com.phonepe.app' => 'PhonePe',
-      'com.google.android.apps.nbu.paisa.user' => 'Google Pay',
-      'in.org.npci.upiapp' => 'BHIM',
-      'com.whatsapp' => 'WhatsApp Pay',
-      'com.amazon.mShop.android.shopping' => 'Amazon Pay',
-      'com.mobikwik_new' => 'MobiKwik',
-      'com.freecharge.android' => 'FreeCharge',
-      _ => 'UPI Payment',
     };
   }
 }

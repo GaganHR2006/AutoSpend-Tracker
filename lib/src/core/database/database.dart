@@ -30,12 +30,22 @@ class Transactions extends Table {
   IntColumn get linkedLendingId => integer().nullable()();
 }
 
-@DriftDatabase(tables: [Transactions])
+// Budget table for tracking spending limits
+class Budgets extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get category => text()(); // e.g., "Food", "TOTAL_MONTHLY", "CREDIT_CARD"
+  RealColumn get limitAmount => real()();
+  IntColumn get alertThreshold => integer().withDefault(const Constant(80))(); // Percentage (0-100)
+  BoolColumn get isActive => boolean().withDefault(const Constant(true))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+@DriftDatabase(tables: [Transactions, Budgets])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 2; // ⭐ Bumped for lending columns
+  int get schemaVersion => 3; // ⭐ Bumped for budgets table
 
   @override
   MigrationStrategy get migration {
@@ -50,12 +60,18 @@ class AppDatabase extends _$AppDatabase {
           await m.addColumn(transactions, transactions.lendingType);
           await m.addColumn(transactions, transactions.linkedLendingId);
         }
+        if (from < 3) {
+          // Add budgets table
+          await m.createTable(budgets);
+        }
       },
     );
   }
 
   Stream<List<Transaction>> watchAllTransactions() {
-    return (select(transactions)..orderBy([(t) => OrderingTerm.desc(t.timestamp)])).watch();
+    return (select(transactions)
+      ..orderBy([(t) => OrderingTerm.desc(t.timestamp)]))
+      .watch();
   }
 
   Stream<double> watchBalance() {
@@ -64,11 +80,17 @@ class AppDatabase extends _$AppDatabase {
       '''SELECT (
         COALESCE((SELECT SUM(amount) FROM transactions WHERE type = 0 AND is_lending = 0), 0) - 
         COALESCE((SELECT SUM(amount) FROM transactions WHERE type = 1 AND is_lending = 0), 0)
-      ) AS balance''',
+      ) AS balance,
+      COALESCE((SELECT SUM(amount) FROM transactions WHERE type = 0 AND is_lending = 0), 0) AS total_income,
+      COALESCE((SELECT SUM(amount) FROM transactions WHERE type = 1 AND is_lending = 0), 0) AS total_expense,
+      (SELECT COUNT(*) FROM transactions) AS tx_count
+      ''',
       readsFrom: {transactions}
     ).watch().map((rows) {
       if (rows.isEmpty) return 0.0;
-      return rows.first.read<double>('balance');
+      
+      final balance = rows.first.read<double>('balance');
+      return balance;
     });
   }
 
@@ -87,6 +109,126 @@ class AppDatabase extends _$AppDatabase {
         'returned': rows.first.read<double>('returned'),
       };
     });
+  }
+
+  /// Check if a similar transaction already exists (fuzzy duplicate detection)
+  /// Returns true if a transaction with matching amount, type, merchant, and timestamp (±5 minutes) exists
+  /// 
+  /// Why 5 minutes? SMS can be delayed due to:
+  /// - Network congestion
+  /// - Poor signal strength  
+  /// - Carrier processing delays
+  /// - Notification delivery lag
+  /// 
+  /// ✅ CRITICAL: Now includes merchant name to avoid blocking different transactions with same amount
+  Future<bool> isDuplicateTransaction({
+    required double amount,
+    required TransactionType type,
+    required DateTime timestamp,
+    String? merchant,  // ✅ Added merchant parameter
+  }) async {
+    // Define time window (±5 minutes = ±300 seconds)
+    final startWindow = timestamp.subtract(const Duration(minutes: 5));
+    final endWindow = timestamp.add(const Duration(minutes: 5));
+    
+    // Query for transactions with matching amount, type, merchant within time window
+    // ✅ CRITICAL: Merchant matching prevents false duplicates (e.g., two ₹1 payments from different people)
+    final query = select(transactions)
+      ..where((t) {
+        var condition = t.amount.equals(amount) & 
+                        t.type.equalsValue(type) &
+                        t.timestamp.isBiggerOrEqualValue(startWindow) &
+                        t.timestamp.isSmallerOrEqualValue(endWindow);
+        
+        // ✅ Add merchant matching if merchant name provided
+        if (merchant != null && merchant.isNotEmpty) {
+          condition = condition & t.merchant.equals(merchant);
+        }
+        
+        return condition;
+      });
+    
+    final results = await query.get();
+    return results.isNotEmpty;
+  }
+
+  /// Watch the total transaction count (for debugging)
+  Stream<int> watchTransactionCount() {
+    final query = selectOnly(transactions)..addColumns([transactions.id.count()]);
+    return query.map((row) => row.read(transactions.id.count()) ?? 0).watchSingle();
+  }
+
+  // ⭐ Clear all transactions before new scan
+  Future<void> clearAllTransactions() async {
+    await delete(transactions).go();
+  }
+
+  // ================== BUDGET METHODS ==================
+
+  /// Watch all active budgets
+  Stream<List<Budget>> watchBudgets() {
+    return (select(budgets)..where((b) => b.isActive.equals(true))).watch();
+  }
+
+  /// Get all budgets (including inactive)
+  Future<List<Budget>> getAllBudgets() async {
+    return select(budgets).get();
+  }
+
+  /// Get budget for specific category
+  Future<Budget?> getBudgetForCategory(String category) async {
+    final query = select(budgets)..where((b) => b.category.equals(category) & b.isActive.equals(true));
+    final results = await query.get();
+    return results.isEmpty ? null : results.first;
+  }
+
+  /// Insert a new budget
+  Future<int> insertBudget(BudgetsCompanion budget) async {
+    return await into(budgets).insert(budget);
+  }
+
+  /// Update an existing budget
+  Future<bool> updateBudget(Budget budget) async {
+    return await update(budgets).replace(budget);
+  }
+
+  /// Delete a budget
+  Future<int> deleteBudget(int id) async {
+    return await (delete(budgets)..where((b) => b.id.equals(id))).go();
+  }
+
+  /// Calculate spending for a category in a date range
+  Future<double> calculateCategorySpending(String category, DateTime startDate, DateTime endDate) async {
+    // Normalize dates
+    final normalizedStart = DateTime(startDate.year, startDate.month, startDate.day);
+    final normalizedEnd = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
+
+    final query = selectOnly(transactions)
+      ..addColumns([transactions.amount.sum()])
+      ..where(transactions.type.equalsValue(TransactionType.expense) &
+              transactions.category.equals(category) &
+              transactions.isLending.equals(false) &
+              transactions.timestamp.isBiggerOrEqualValue(normalizedStart) &
+              transactions.timestamp.isSmallerOrEqualValue(normalizedEnd));
+    
+    final result = await query.getSingle();
+    return result.read(transactions.amount.sum()) ?? 0.0;
+  }
+
+  /// Calculate total monthly spending (excluding lending)
+  Future<double> calculateTotalMonthlySpending(DateTime startDate, DateTime endDate) async {
+    final normalizedStart = DateTime(startDate.year, startDate.month, startDate.day);
+    final normalizedEnd = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
+
+    final query = selectOnly(transactions)
+      ..addColumns([transactions.amount.sum()])
+      ..where(transactions.type.equalsValue(TransactionType.expense) &
+              transactions.isLending.equals(false) &
+              transactions.timestamp.isBiggerOrEqualValue(normalizedStart) &
+              transactions.timestamp.isSmallerOrEqualValue(normalizedEnd));
+    
+    final result = await query.getSingle();
+    return result.read(transactions.amount.sum()) ?? 0.0;
   }
 }
 

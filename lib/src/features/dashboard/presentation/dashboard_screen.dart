@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'home_screen.dart';
 import 'analytics_screen.dart';
+import 'menu_screen.dart';
 import '../../transactions/presentation/add_transaction_sheet.dart';
+import '../../onboarding/app_tour_screen.dart';
 
 
 
@@ -17,15 +20,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final List<Widget> _screens = const [
     HomeScreen(),
     AnalyticsScreen(),
+    MenuScreen(),
   ];
 
+  final List<String> _titles = const [
+    'AutoSpend',
+    'Analytics',
+    'Menu',
+  ];
 
+  @override
+  void initState() {
+    super.initState();
+    _checkAndShowTour();
+  }
+
+  Future<void> _checkAndShowTour() async {
+    // Wait for dashboard to render
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    final prefs = await SharedPreferences.getInstance();
+    final tourCompleted = prefs.getBool('tour_completed') ?? false;
+    
+    if (!tourCompleted && mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => const AppTourScreen(),
+          fullscreenDialog: true,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AutoSpend'),
+        title: Text(_titles[_currentIndex]),
+        centerTitle: false,
       ),
       body: _screens[_currentIndex],
       bottomNavigationBar: NavigationBar(

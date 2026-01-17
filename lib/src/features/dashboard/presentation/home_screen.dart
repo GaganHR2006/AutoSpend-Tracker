@@ -2,30 +2,66 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter/services.dart';
 import '../data/dashboard_providers.dart';
 import 'widgets/transaction_tile.dart';
 import '../../transactions/presentation/quick_categorize_sheet.dart';
+import '../../transactions/presentation/add_transaction_sheet.dart'; // Assumed import
 import '../../transactions/data/transaction_repository.dart';
+import '../../budget/data/budget_repository.dart';
+import '../../budget/presentation/widgets/budget_progress_card.dart';
+import '../../budget/presentation/budget_settings_screen.dart';
 
 // --- LOCAL PROVIDERS ---
 final displayCountProvider = StateProvider<int>((ref) => 100);
 
 // Provider for uncategorized count
 final uncategorizedCountProvider = Provider<int>((ref) {
-  final transactionsAsync = ref.watch(transactionListProvider);
+  final transactionsAsync = ref.watch(filteredTransactionListProvider);
   return transactionsAsync.when(
-    data: (list) => list.where((t) => t.category == 'Uncategorized').length,
+    data: (list) {
+      return list.where((t) => t.category == 'Uncategorized').length;
+    },
     loading: () => 0,
     error: (_, __) => 0,
   );
 });
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final balanceAsync = ref.watch(totalBalanceProvider);
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
+  
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+  
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+  
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Invalidate all transaction-related providers
+      ref.invalidate(transactionListProvider);
+      ref.invalidate(filteredTransactionListProvider);
+      ref.invalidate(filteredBalanceProvider);
+      ref.invalidate(lendingSummaryProvider);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final balanceAsync = ref.watch(filteredBalanceProvider);
     final transactionsAsync = ref.watch(filteredTransactionListProvider);
     final displayCount = ref.watch(displayCountProvider);
     final uncategorizedCount = ref.watch(uncategorizedCountProvider);
@@ -33,7 +69,20 @@ class HomeScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      body: CustomScrollView(
+      body: RefreshIndicator(
+        onRefresh: () async {
+          // Invalidate all providers to force refresh
+          ref.invalidate(transactionListProvider);
+          ref.invalidate(filteredTransactionListProvider);
+          ref.invalidate(filteredBalanceProvider);
+          ref.invalidate(lendingSummaryProvider);
+          
+          // Wait for providers to rebuild
+          await Future.delayed(const Duration(milliseconds: 500));
+        },
+        color: Colors.teal,
+        backgroundColor: Colors.black,
+        child: CustomScrollView(
         slivers: [
           // 1. Balance Card
           SliverToBoxAdapter(
@@ -45,26 +94,39 @@ class HomeScreen extends ConsumerWidget {
             child: _buildLendingSummaryCard(context, lendingSummaryAsync),
           ),
           
+          // 2.5. Budget Overview (if budgets set)
+          SliverToBoxAdapter(
+            child: _buildBudgetOverview(context, ref),
+          ),
+          
           // 3. Uncategorized Banner (if any)
           if (uncategorizedCount > 0)
             SliverToBoxAdapter(
               child: _buildUncategorizedBanner(context, ref, uncategorizedCount),
             ),
-          
-          // 3. THE FILTER BAR (Neon Style ⚡)
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.only(top: 15.0, bottom: 10.0),
-              child: TransactionFilterBar(), 
-            ),
-          ),
 
           SliverPadding(
             padding: const EdgeInsets.all(16.0),
             sliver: SliverToBoxAdapter(
-              child: Text(
-                'Recent Transactions',
-                style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+              child: Row(
+                children: [
+                  Text(
+                    'Recent Transactions',
+                    style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                  const Spacer(),
+                  // ✅ Legend
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildSourceBadge(Icons.sms, Colors.blue, 'SMS'),
+                      const SizedBox(width: 6),
+                      _buildSourceBadge(Icons.notifications, Colors.orange, 'Notif'),
+                      const SizedBox(width: 6),
+                      _buildSourceBadge(Icons.edit, Colors.grey, 'Manual'),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),
@@ -120,6 +182,7 @@ class HomeScreen extends ConsumerWidget {
           const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
         ],
       ),
+      ),  // ✅ RefreshIndicator
     );
   }
 
@@ -272,21 +335,137 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
+  // ⭐ Budget Overview Section
+  Widget _buildBudgetOverview(BuildContext context, WidgetRef ref) {
+    return FutureBuilder<List<BudgetUsage>>(
+      future: _getBudgetUsages(ref),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        final usages = snapshot.data!;
+        
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Row(
+                children: [
+                  Text(
+                    'Budget Overview',
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const BudgetSettingsScreen(),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      'Manage',
+                      style: GoogleFonts.poppins(color: Colors.teal),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ...usages.take(3).map((usage) => BudgetProgressCard(
+              category: usage.category,
+              spent: usage.spent,
+              limit: usage.limit,
+              percentage: usage.percentage,
+              isCompact: true,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const BudgetSettingsScreen(),
+                  ),
+                );
+              },
+            )),
+            const SizedBox(height: 8),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<List<BudgetUsage>> _getBudgetUsages(WidgetRef ref) async {
+    final budgetRepo = ref.read(budgetRepositoryProvider);
+    final budgets = await budgetRepo.getBudgets();
+    
+    if (budgets.isEmpty) return [];
+
+    final usages = <BudgetUsage>[];
+    
+    // Priority order: TOTAL_MONTHLY, CREDIT_CARD, then categories sorted by percentage
+    for (final budget in budgets) {
+      if (!budget.isActive) continue;
+      
+      final usage = await budgetRepo.calculateUsage(budget.category);
+      usages.add(usage);
+    }
+
+    // Sort: Special categories first (TOTAL_MONTHLY, CREDIT_CARD), then by percentage descending
+    usages.sort((a, b) {
+      // TOTAL_MONTHLY always first
+      if (a.category == 'TOTAL_MONTHLY') return -1;
+      if (b.category == 'TOTAL_MONTHLY') return 1;
+      
+      // CREDIT_CARD second
+      if (a.category == 'CREDIT_CARD') return -1;
+      if (b.category == 'CREDIT_CARD') return 1;
+      
+      // Others sorted by percentage (highest first)
+      return b.percentage.compareTo(a.percentage);
+    });
+
+    return usages;
+  }
+
   // ⭐ Uncategorized Banner - Opens Quick Categorize
   Widget _buildUncategorizedBanner(BuildContext context, WidgetRef ref, int count) {
     return GestureDetector(
       onTap: () async {
-        final uncategorized = await ref.read(transactionRepositoryProvider).getUncategorizedTransactions();
+        print('🔍 Uncategorized banner tapped! Count: $count');
         
-        if (uncategorized.isEmpty) return;
+        final uncategorized = await ref.read(transactionRepositoryProvider).getUncategorizedTransactions();
+        print('📊 Found ${uncategorized.length} uncategorized transactions');
+        
+        if (uncategorized.isEmpty) {
+          print('⚠️ No uncategorized transactions found');
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('All transactions are categorized! 🎉'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+          return;
+        }
 
         if (context.mounted) {
+          print('✅ Opening Quick Categorize sheet...');
           showModalBottomSheet(
             context: context,
             isScrollControlled: true,
             backgroundColor: Colors.transparent,
-            builder: (context) => QuickCategorizeSheet(transactions: uncategorized),
+            builder: (sheetContext) => QuickCategorizeSheet(transactions: uncategorized),
           );
+        } else {
+          print('❌ Context not mounted!');
         }
       },
       child: Container(
@@ -330,6 +509,32 @@ class HomeScreen extends ConsumerWidget {
               ),
             ),
             const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✅ Helper method for source badge legend
+  Widget _buildSourceBadge(IconData icon, Color color, String label) {
+    return Tooltip(
+      message: label,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: color.withOpacity(0.4), width: 1),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 10, color: color),
+            const SizedBox(width: 3),
+            Text(
+              label,
+              style: TextStyle(fontSize: 9, color: color, fontWeight: FontWeight.w600),
+            ),
           ],
         ),
       ),

@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../src/core/database/database.dart';
 import '../data/transaction_repository.dart';
 import '../../categories/data/categories.dart';
+import '../../categories/data/category_service.dart';
 
 class AddTransactionSheet extends ConsumerStatefulWidget {
   final Transaction? transaction;
@@ -28,10 +29,15 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   // ⭐ Lending fields
   bool _isLending = false;
   LendingType _lendingType = LendingType.none;
+  
+  // ✅ Sorted categories list (includes custom categories)
+  List<String> _sortedCategories = [];
 
   @override
   void initState() {
     super.initState();
+    _loadCategories();
+    
     if (widget.transaction != null) {
       final tx = widget.transaction!;
       _amountController.text = tx.amount.toString();
@@ -41,6 +47,26 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       _date = tx.timestamp;
       _isLending = tx.isLending;
       _lendingType = tx.lendingType;
+    }
+  }
+  
+  // ✅ Load and sort all categories (predefined + custom)
+  Future<void> _loadCategories() async {
+    try {
+      final categoryService = ref.read(categoryServiceProvider);
+      final categories = await categoryService.getAllCategoryNames();
+      
+      setState(() {
+        _sortedCategories = categories;
+      });
+      
+      print('✅ Loaded ${categories.length} categories (including custom)');
+    } catch (e) {
+      print('Error loading categories: $e');
+      // Fallback to default categories
+      setState(() {
+        _sortedCategories = List.from(categoryNames);
+      });
     }
   }
 
@@ -100,6 +126,112 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
+  }  // ✅ Fixed: Added missing closing brace
+
+  // ✅ Show dialog to create custom category
+  void _showCreateCategoryDialog() {
+    final TextEditingController categoryController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: Text(
+          'Create New Category',
+          style: GoogleFonts.poppins(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Enter a name for your custom category',
+              style: GoogleFonts.poppins(color: Colors.grey, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: categoryController,
+              style: GoogleFonts.poppins(color: Colors.white, fontSize: 16),
+              textCapitalization: TextCapitalization.words,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'e.g., Car Maintenance',
+                hintStyle: GoogleFonts.poppins(color: Colors.grey),
+                filled: true,
+                fillColor: const Color(0xFF2E2E2E),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.teal, width: 2),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(color: Colors.grey),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.teal,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            onPressed: () async {
+              final customCategory = categoryController.text.trim();
+              if (customCategory.isEmpty) return;
+              
+              Navigator.pop(dialogContext);
+              
+              // ✅ Save to global category registry
+              final categoryService = ref.read(categoryServiceProvider);
+              await categoryService.addCustomCategory(customCategory);
+              
+              // Reload categories to show the new one
+              await _loadCategories();
+              
+              setState(() {
+                _category = customCategory;
+              });
+              
+              // Show success message
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      '✅ Category "$customCategory" created and saved globally!',
+                      style: GoogleFonts.poppins(),
+                    ),
+                    backgroundColor: Colors.green,
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+            child: Text(
+              'Create',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -163,21 +295,64 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               ),
               const SizedBox(height: 16),
 
-              // Category Dropdown - Using enhanced categories
+              // Category Dropdown - Using sorted categories (includes custom)
               DropdownButtonFormField<String>(
-                value: categoryNames.contains(_category) ? _category : 'Uncategorized',
-                items: categoryNames.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                value: _sortedCategories.isEmpty 
+                    ? _category 
+                    : (_sortedCategories.contains(_category) ? _category : 'Uncategorized'),
+                items: [
+                  // Show loading state if categories haven't loaded
+                  if (_sortedCategories.isEmpty)
+                    ...categoryNames.map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                  else
+                    // All loaded categories (sorted alphabetically)
+                    ..._sortedCategories.map((c) => DropdownMenuItem(value: c, child: Text(c))),
+                  
+                  // Divider before Create New
+                  const DropdownMenuItem(
+                    enabled: false,
+                    value: '__DIVIDER__',
+                    child: Divider(),
+                  ),
+                  
+                  // Create New option
+                  DropdownMenuItem(
+                    value: '__CREATE_NEW__',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.add_circle_outline, color: Colors.teal, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Create New Category',
+                          style: GoogleFonts.poppins(
+                            color: Colors.teal,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 onChanged: (val) {
-                  setState(() {
-                    _category = val!;
-                    // Reset lending if not Friends & Family
-                    if (_category != 'Friends & Family') {
-                      _isLending = false;
-                      _lendingType = LendingType.none;
-                    }
-                  });
+                  if (val == '__CREATE_NEW__') {
+                    // Show create category dialog
+                    _showCreateCategoryDialog();
+                  } else if (val != '__DIVIDER__') {
+                    setState(() {
+                      _category = val!;
+                      // Reset lending if not Friends & Family
+                      if (_category != 'Friends & Family') {
+                        _isLending = false;
+                        _lendingType = LendingType.none;
+                      }
+                    });
+                  }
                 },
-                decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                  labelText: 'Category',
+                  border: OutlineInputBorder(),
+                ),
               ),
               const SizedBox(height: 16),
 

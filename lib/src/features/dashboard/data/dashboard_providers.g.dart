@@ -43,7 +43,7 @@ final recentTransactionsProvider =
 // ignore: unused_element
 typedef RecentTransactionsRef = AutoDisposeStreamProviderRef<List<Transaction>>;
 String _$spendingByCategoryHash() =>
-    r'e27d9c0ac86711ec54d920d072f4623ada3c3fcc';
+    r'3e8d99a162e8b6f48d862424af7b61ac6415f015';
 
 /// See also [spendingByCategory].
 @ProviderFor(spendingByCategory)

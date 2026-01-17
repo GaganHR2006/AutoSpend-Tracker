@@ -16,6 +16,27 @@ class TransactionTile extends StatelessWidget {
     final merchantName = transaction.merchant ?? 'Unknown';
     final firstLetter = merchantName.isNotEmpty ? merchantName[0].toUpperCase() : '?';
 
+    // ✅ Determine source from smsId
+    String source = 'Manual';
+    Color sourceColor = Colors.grey;
+    IconData sourceIcon = Icons.edit;
+    
+    if (transaction.smsId != null) {
+      if (transaction.smsId!.startsWith('sms_')) {
+        source = 'SMS';
+        sourceColor = Colors.blue;
+        sourceIcon = Icons.sms;
+      } else if (transaction.smsId!.startsWith('notif_')) {
+        source = 'Notification';
+        sourceColor = Colors.orange;
+        sourceIcon = Icons.notifications;
+      } else if (transaction.smsId!.startsWith('manual_')) {
+        source = 'Manual';
+        sourceColor = Colors.grey;
+        sourceIcon = Icons.edit;
+      }
+    }
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       elevation: 0,
@@ -29,15 +50,37 @@ class TransactionTile extends StatelessWidget {
             builder: (context) => AddTransactionSheet(transaction: transaction),
           );
         },
-        leading: CircleAvatar(
-          backgroundColor: isIncome ? Colors.teal.withAlpha(51) : Colors.red.withAlpha(51),
-          child: Text(
-            firstLetter,
-            style: TextStyle(
-              color: isIncome ? Colors.teal : Colors.red,
-              fontWeight: FontWeight.bold,
+        leading: Stack(
+          children: [
+            CircleAvatar(
+              backgroundColor: isIncome ? Colors.teal.withAlpha(51) : Colors.red.withAlpha(51),
+              child: Text(
+                firstLetter,
+                style: TextStyle(
+                  color: isIncome ? Colors.teal : Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
-          ),
+            // ✅ Source badge
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: sourceColor,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.black, width: 1),
+                ),
+                child: Icon(
+                  sourceIcon,
+                  size: 10,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
         ),
         title: Text(
           merchantName,
