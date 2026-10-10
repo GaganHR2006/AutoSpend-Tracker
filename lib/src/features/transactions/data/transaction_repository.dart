@@ -54,8 +54,11 @@ class TransactionRepository {
     
     if (startDateStr != null && endDateStr != null) {
       final startDate = DateTime.parse(startDateStr);
-      final endDate = DateTime.parse(endDateStr);
-      
+      final savedEnd = DateTime.parse(endDateStr);
+      // Extend a past saved end date to today so new transactions are included
+      final now = DateTime.now();
+      final endDate = savedEnd.isAfter(now) ? savedEnd : now;
+
       // Normalize to start of day and end of day
       final normalizedStart = DateTime(startDate.year, startDate.month, startDate.day);
       final normalizedEnd = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);

@@ -137,17 +137,25 @@ class _AutoSpendAppState extends ConsumerState<AutoSpendApp> with WidgetsBinding
     // ✅ CRITICAL: Check quick action flag FIRST, before it gets consumed
     final hasPendingQuickAction = prefs.getBool('quick_add_pending') ?? false;
     
-    // Check FlutterSecureStorage (original method)
-    final secureValue = await secureStorage.read(key: 'is_onboarded');
-    
+    // Check FlutterSecureStorage (original method). On some devices the Android
+    // Keystore can fail to decrypt old data (e.g. after a reinstall/restore), which
+    // used to leave the app stuck on the loading spinner, so never let it throw.
+    String? secureValue;
+    String? biometricEnabled;
+    try {
+      secureValue = await secureStorage.read(key: 'is_onboarded');
+      biometricEnabled = await secureStorage.read(key: 'biometric_enabled');
+    } catch (e) {
+      debugPrint('Secure storage unavailable, falling back to prefs: $e');
+    }
+
     // Check SharedPreferences (backup method - more reliable)
     final prefsValue = prefs.getBool('setup_complete') ?? false;
-    
+
     // User is onboarded if EITHER storage says true
     final isOnboarded = secureValue == 'true' || prefsValue;
-    
+
     // ✅ Check if biometric authentication is enabled
-    final biometricEnabled = await secureStorage.read(key: 'biometric_enabled');
     final isBioEnabled = biometricEnabled == 'true';
     
     setState(() {

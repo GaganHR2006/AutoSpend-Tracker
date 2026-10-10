@@ -94,7 +94,9 @@ final filteredTransactionListProvider = Provider<AsyncValue<List<Transaction>>>(
         case TransactionTimeFilter.customRange:
           if (customRange != null) {
             startDate = customRange.start;
-            endDate = customRange.end;
+            // The saved end date is the day onboarding finished. Never let it
+            // cut off transactions added after that day, so extend to today.
+            endDate = customRange.end.isAfter(now) ? customRange.end : now;
           } else {
             startDate = DateTime(now.year, now.month, 1);
           }
@@ -157,8 +159,11 @@ Stream<Map<String, double>> spendingByCategory(Ref ref) {
     
     // Apply date filter if available
     if (savedRange != null) {
+      // Extend a past saved end date to today so new transactions still count.
+      final now = DateTime.now();
+      final effectiveEnd = savedRange.end.isAfter(now) ? savedRange.end : now;
       final normalizedStart = DateTime(savedRange.start.year, savedRange.start.month, savedRange.start.day);
-      final normalizedEnd = DateTime(savedRange.end.year, savedRange.end.month, savedRange.end.day, 23, 59, 59);
+      final normalizedEnd = DateTime(effectiveEnd.year, effectiveEnd.month, effectiveEnd.day, 23, 59, 59);
 
       transactions = allTransactions.where((tx) {
         return !tx.timestamp.isBefore(normalizedStart) && 
