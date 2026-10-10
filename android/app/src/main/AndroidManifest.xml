@@ -1,9 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     
+    <!-- Needed in release builds so google_fonts can download Poppins -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <!-- SMS Permissions -->
     <uses-permission android:name="android.permission.READ_SMS"/>
     <uses-permission android:name="android.permission.RECEIVE_SMS"/>
-    
+
     <!-- ✅ CRITICAL: Android 14 intent visibility declaration -->
     <queries>
         <intent>
@@ -18,6 +21,7 @@
         android:label="AutoSpend"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
         android:enableOnBackInvokedCallback="true">
         
         <!-- MainActivity -->
