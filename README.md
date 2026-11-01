@@ -1,6 +1,10 @@
 <div align="center">
 
-<img src="assets/icon.png" alt="AutoSpend" width="100" height="100"/>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/icon_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/icon.png">
+  <img src="assets/icon.png" alt="AutoSpend" width="100" height="100"/>
+</picture>
 
 # AutoSpend
 
